@@ -9,7 +9,7 @@ Parameters:
     Description: Enable or Disable deletion protection option - this can prevent from accidental deletion
     Type: String
   OwnerEmail:
-    Description: The value to use for the tag "Owner".
+    Description: The value to use for the tag Owner.
     Type: String
   SubnetIDs:
     Description: Subnets where the NLB will be deployed
@@ -57,7 +57,7 @@ Resources:
         HostedZoneId: !GetAtt 'NetworkLoadBalancer.CanonicalHostedZoneID'
         DNSName: !GetAtt 'NetworkLoadBalancer.DNSName'  
 
-### CFn Outputs ###
+### CFn Outputs that can be used as references from another CFn stack ###
 Outputs:  
   LoadBalancerARN: 
     Value: !Ref NetworkLoadBalancer
