@@ -1,7 +1,7 @@
 # Infra-via-CFn
 Provision AWS infrastructure using CloudFormation template
 
-##EC2
+## EC2
 
 
-##nlb
+## nlb
