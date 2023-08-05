@@ -1,0 +1,142 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: This CFn template deploys an EC2 Server
+
+Parameters:
+  AppNamePrefix: 
+    Description: Application short name
+    Type: String
+  AmazonMachineImage:
+    Description: Windows Server 2019 Base AMI
+    Type: String
+  InstanceType:
+    Type: String
+    Description: Enter the instance type of the user OR all server 
+  IamInstanceProfile:
+    Type: String
+    Description: Enter the name of the the iam instance profile
+  InstanceSecurityGroupIDs:
+    Description: Security Group IDs for EC2 Instance.
+    Type: 'List<AWS::EC2::SecurityGroup::Id>'
+  OwnerEmail:
+    Description: Email of the resource owner for tagging purpose
+    Type: String
+  PrivateSubnetID:
+    Type: String
+    Description: Enter the subnets for the instances
+  SsmAmiLookupPath:
+    Description: The SSM parameter path for AMI lookup
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+  Service:
+    Description: Purpose/Use of the Server (e.g. web server, app server, ftp server)
+    Type: String
+  SampleTag:
+    Description: Team tag - EZRMS (uppser case)
+    Type: String
+  TerminationProtection:
+    Description: Protect EC2 instance against accidental termination (Boolean expression)
+    Type: String
+  VolumeSize:
+    Description: Local Disk capacity
+    Type: String
+  DVolumeSize:
+    Description: D partition volume capacity
+    Type: String
+  VolumeType:
+    Description: Type of Volume Disk (gp3, gp2, io1, io2 etc.)
+    Type: String
+
+Conditions:
+  AMIOveride: !Not [!Equals [ !Ref AmazonMachineImage, "" ] ]
+  
+Resources:
+  Server:
+    Type: AWS::EC2::Instance
+    Metadata: 
+      AWS::CloudFormation::Init:
+        config:
+            files:
+              # Powershell Script #1
+              c:\temp\install-awscli.ps1:
+                content: |
+                  Invoke-WebRequest -UseBasicParsing -Uri  https://awscli.amazonaws.com/AWSCLIV2.msi -OutFile c:\temp\AWSCLI.msi
+                  Start-Process -filepath "msiexec.exe" -argumentlist @("/i", "c:\temp\AWSCLI.msi", "/quiet" , "/log c:\temp\install-awscli.log") -wait
+                  
+              c:\temp\install-python.ps1:
+                content: |
+                  Invoke-WebRequest -UseBasicParsing -Uri https://www.python.org/ftp/python/3.8.10/python-3.8.10-amd64.exe -OutFile C:\Temp\python-3.8.10-amd64.exe
+                  cmd /c start /wait "C:\Temp\python-3.8.10-amd64.exe" /quiet TargetDir="C:\Program Files\Python38" Shortcuts=0 Include_launcher=1 InstallLauncherAllUsers=1
+
+              # Add PATH - Windows environment variables
+              C:\temp\add-envpath.ps1:
+                 content: |
+                  $oldpath = (Get-ItemProperty -Path 'Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\Environment' -Name PATH).path
+                  $newpath = "$oldpath;C:\Program Files\Python38;<PATH_02>;<PATH_03>"
+                  Set-ItemProperty -Path 'Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\Environment' -Name PATH -Value $newpath
+            
+            ## Executing the commands from above and miscellaneous  
+            commands:
+              1-AWS-CLI-Install:
+                command: powershell.exe -executionpolicy bypass -file "c:\temp\install-awscli.ps1"
+                waitAfterCompletion: '0'
+              2-EnableTelnetClient:
+                command: powershell.exe -Command "Install-WindowsFeature -Name Telnet-Client"
+                waitAfterCompletion: '0'
+              3-Install-Python:
+                command: powershell.exe -executionpolicy bypass -file "c:\temp\install-python.ps1"
+                waitAfterCompletion: '0'
+              4-AddPATH:
+                command: powershell.exe -executionpolicy bypass -file "C:\temp\add-envpath.ps1"
+                waitAfterCompletion: '0'
+              5-RenameServer:
+                ### Using "!Sub" syntax allows passing parameter ${NewServerName}
+                command: !Sub |
+                  powershell.exe -Command "Rename-Computer -Name ${NewServerName}"
+                waitAfterCompletion: '0'
+              5-RebootServer:
+                command: powershell.exe -Command "Restart-Computer -Force"
+                waitAfterCompletion: 'forever'
+                            
+    Properties: 
+      InstanceType: !Ref InstanceType
+      ImageId: !If [AMIOveride, !Ref AmazonMachineImage, !Ref SsmAmiLookupPath]
+      IamInstanceProfile: !Ref IamInstanceProfile
+      SubnetId: !Ref PrivateSubnetID
+      KeyName: !Sub keypair-name
+      BlockDeviceMappings:
+        ### Disk Volume primary partition
+          - DeviceName: /dev/sda1
+            Ebs:
+              VolumeSize: !Ref VolumeSize
+              VolumeType: !Ref VolumeType
+              DeleteOnTermination: true
+        ### Disk Volume secondary partition      
+          - DeviceName: xvda
+            Ebs:
+              VolumeSize: !Ref DVolumeSize
+              VolumeType: !Ref VolumeType
+              DeleteOnTermination: true
+      DisableApiTermination: !Ref TerminationProtection
+      SecurityGroupIds: !Ref InstanceSecurityGroupIDs
+      UserData:
+        'Fn::Base64': !Sub |
+            # Powershell script to execute as UserData
+            <powershell>
+            Get-Disk
+            Initialize-Disk -Number 1
+            New-Partition -DiskNumber 1 -DriveLetter d -UseMaximumSize
+            Format-Volume -DriveLetter D -FileSystem NTFS -Confirm:$false
+            cfn-init.exe -v --stack ${AWS::StackId} --resource Server --region ${AWS::Region}
+            </powershell>
+                             
+      PropagateTagsToVolumeOnCreation: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppNamePrefix}-${Service}
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: Product
+          Value: !Ref AppNamePrefix
+        - Key: Service
+          Value: !Sub ${AppNamePrefix}-${Service}
+        - Key: Team
+          Value: !Ref SampleTag

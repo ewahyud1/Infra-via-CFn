@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: This CFn template deploys Network Load Balancer(NLB), creates a Route53 (Alias) record maps to the NLB
+
+Parameters:
+  AppNamePrefix:
+    Description: Prefix name for resources
+    Type: String
+  DeleteProtection:
+    Description: Enable or Disable deletion protection option - this can prevent from accidental deletion
+    Type: String
+  OwnerEmail:
+    Description: The value to use for the tag "Owner".
+    Type: String
+  SubnetIDs:
+    Description: Subnets where the NLB will be deployed
+    Type: List<AWS::EC2::Subnet::Id>
+  SampleTag:
+    Description: Tag that you can add to resource
+    Type: String
+  VPC: 
+    Description: The VPC ID where the NLB will be deployed
+    Type: String
+  HostedZoneId:
+    Description: DNS Hosted Zone name in Route 53
+    Type: String
+  DNSHostName:
+    Description: DNS Hostname for the new URL
+    Type: String
+
+Resources:
+  NetworkLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties: 
+      Name: !Sub ${AppNamePrefix}-net-loadbalancer
+      LoadBalancerAttributes:
+        - Key: deletion_protection.enabled
+          Value: !Ref DeleteProtection
+      Scheme: internet-facing
+      Subnets: !Ref SubnetIDs
+      Type: network
+      Tags:
+        - Key: Network
+          Value: Internet
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: Product
+          Value: !Ref AppNamePrefix
+        - Key: Service
+          Value: !Sub ${AppNamePrefix}:server
+        - Key: Team
+          Value: !Ref SampleTag
+  
+  Route53Record:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DNSHostName
+      Type: A
+      AliasTarget:
+        HostedZoneId: !GetAtt 'NetworkLoadBalancer.CanonicalHostedZoneID'
+        DNSName: !GetAtt 'NetworkLoadBalancer.DNSName'  
+
+### CFn Outputs ###
+Outputs:  
+  LoadBalancerARN: 
+    Value: !Ref NetworkLoadBalancer
+  DNSName:
+    Value: !GetAtt NetworkLoadBalancer.DNSName
+  NLBName:
+    Value: !GetAtt NetworkLoadBalancer.LoadBalancerFullName
+  DNSHostName:
+    Value: !Ref DNSHostName
