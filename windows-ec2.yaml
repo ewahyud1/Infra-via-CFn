@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: This CFn template deploys an EC2 Server
+Description: This CFn template deploys an EC2 Windows Server
 
 Parameters:
   AppNamePrefix: 
