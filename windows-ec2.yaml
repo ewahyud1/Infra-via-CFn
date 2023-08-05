@@ -51,16 +51,19 @@ Conditions:
 Resources:
   Server:
     Type: AWS::EC2::Instance
+    # Using this section allows for automation scripts to be executed at the time the EC2 is being launched
+    # This is will be a pratical way to pre-load any application/tool, enable window services etc.
     Metadata: 
       AWS::CloudFormation::Init:
         config:
             files:
-              # Powershell Script #1
+              # Powershell Script that download & install AWS CLI
               c:\temp\install-awscli.ps1:
                 content: |
                   Invoke-WebRequest -UseBasicParsing -Uri  https://awscli.amazonaws.com/AWSCLIV2.msi -OutFile c:\temp\AWSCLI.msi
                   Start-Process -filepath "msiexec.exe" -argumentlist @("/i", "c:\temp\AWSCLI.msi", "/quiet" , "/log c:\temp\install-awscli.log") -wait
                   
+              # Powershell Script that download & install python
               c:\temp\install-python.ps1:
                 content: |
                   Invoke-WebRequest -UseBasicParsing -Uri https://www.python.org/ftp/python/3.8.10/python-3.8.10-amd64.exe -OutFile C:\Temp\python-3.8.10-amd64.exe
