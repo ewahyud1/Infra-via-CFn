@@ -16,10 +16,7 @@ Parameters:
     Type: List<AWS::EC2::Subnet::Id>
   SampleTag:
     Description: Tag that you can add to resource
-    Type: String
-  VPC: 
-    Description: The VPC ID where the NLB will be deployed
-    Type: String
+    Type: String  
   HostedZoneId:
     Description: DNS Hosted Zone name in Route 53
     Type: String
